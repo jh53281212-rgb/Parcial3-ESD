@@ -6,7 +6,7 @@ struct Libro {
 
 struct Nodo {
     libro: Libro,
-    //Primero usamos un option por que esto hace que si o si haya un hijo ahi, por que como no manejamos punteros nulos.
+    // Option permite representar de forma segura si un nodo tiene o no hijos.
     //Lo que hace Box que es como un puntero, es que mueve el nodo al Heap (la memoria dinamica). 
     izquierdo: Option<Box<Nodo>>,
     derecho: Option<Box<Nodo>>,
@@ -132,6 +132,124 @@ fn encontrar_minimo(nodo: &Box<Nodo>) -> Libro {
     actual.libro.clone()
 }
 
+fn eliminar(nodo_opt: Option<Box<Nodo>>, isbn: u32) -> Option<Box<Nodo>> {
+
+    let mut nodo = match nodo_opt {
+        None => return None,
+        Some(n) => n,
+    };
+
+    //En esta parte buscaremos el nodo a eliminar
+    if isbn < nodo.libro.isbn {
+
+        nodo.izquierdo = eliminar(nodo.izquierdo.take(), isbn);
+
+    } else if isbn > nodo.libro.isbn {
+
+        nodo.derecho = eliminar(nodo.derecho.take(), isbn);
+
+    } else {
+
+        // CASO 1: nodo hoja
+        if nodo.izquierdo.is_none() && nodo.derecho.is_none() {
+            return None;
+        }
+
+        // CASO 2: solo hijo derecho
+        if nodo.izquierdo.is_none() {
+            return nodo.derecho;
+        }
+
+        // CASO 2: solo hijo izquierdo
+        if nodo.derecho.is_none() {
+            return nodo.izquierdo;
+        }
+
+        // CASO 3: dos hijos
+        let sucesor = encontrar_minimo(nodo.derecho.as_ref().unwrap());
+
+        nodo.libro = sucesor.clone();
+
+        nodo.derecho = eliminar(
+            nodo.derecho.take(),
+            sucesor.isbn,
+        );
+    }
+
+    // Actualizar altura
+    actualizar_altura(&mut nodo);
+
+    // Calcular balance
+    let balance = obtener_balance(&nodo);
+
+    // LL
+    if balance > 1 && obtener_balance(nodo.izquierdo.as_ref().unwrap()) >= 0 {
+        return Some(rotar_derecha(nodo));
+    }
+
+    // LR
+    if balance > 1 && obtener_balance(nodo.izquierdo.as_ref().unwrap()) < 0 {
+
+        let hijo_izq = nodo.izquierdo.take().unwrap();
+
+        nodo.izquierdo = Some(rotar_izquierda(hijo_izq));
+
+        return Some(rotar_derecha(nodo));
+    }
+
+    // RR
+    if balance < -1 && obtener_balance(nodo.derecho.as_ref().unwrap()) <= 0 {
+        return Some(rotar_izquierda(nodo));
+    }
+
+    // RL
+    if balance < -1 && obtener_balance(nodo.derecho.as_ref().unwrap()) > 0 {
+
+        let hijo_der = nodo.derecho.take().unwrap();
+
+        nodo.derecho = Some(rotar_derecha(hijo_der));
+
+        return Some(rotar_izquierda(nodo));
+    }
+
+    Some(nodo)
+}
+
+fn altura_total(raiz: &Option<Box<Nodo>>) -> i32 {
+    obtener_altura(raiz)
+}
+
+fn contar_nodos(nodo: &Option<Box<Nodo>>) -> usize {
+
+    match nodo {
+
+        None => 0,
+
+        Some(n) => {
+            1 +
+            contar_nodos(&n.izquierdo) +
+            contar_nodos(&n.derecho)
+        }
+    }
+}
+
+fn libro_mayor_isbn(nodo: &Option<Box<Nodo>>) -> Option<&Libro> {
+
+    match nodo {
+
+        None => None,
+
+        Some(n) => {
+
+            if n.derecho.is_none() {
+                Some(&n.libro)
+            } else {
+                libro_mayor_isbn(&n.derecho)
+            }
+        }
+    }
+}
+
 fn main() {
     let mut raiz: Option<Box<Nodo>> = None;
     let datos = vec![
@@ -189,7 +307,7 @@ ahora insertamos el 2,
    /
   2
 
-aqui hay desbalance LL en el nodo 10, se aplica rotacion izquierda en 5
+aqui hay desbalance LL en el nodo 10, se aplica rotacion derecha en 5
 
          20
         /   \ 
@@ -238,4 +356,80 @@ ahora insertamos el 25 el ultimo numero,
             println!("Libro no encontrado");
         }
     }
+
+    println!("\n--- Estadísticas del Árbol ---");
+
+println!("Altura total: {}", altura_total(&raiz));
+
+println!("Total de nodos: {}", contar_nodos(&raiz));
+
+match libro_mayor_isbn(&raiz) {
+
+    Some(libro) => {
+        println!(
+            "Libro con ISBN más alto: {} - {}",
+            libro.isbn,
+            libro.titulo
+        );
+    }
+
+    None => {
+        println!("El árbol está vacío");
+    }
+}
+
+    println!("\n--- ELIMINACION---");
+    println!("\n--- Eliminando ISBN 30 ---");
+
+raiz = eliminar(raiz.take(), 30);
+
+imprimir(&raiz, 0);
+
+println!("\n--- Estadísticas del Árbol ---");
+
+println!("Altura total: {}", altura_total(&raiz));
+
+println!("Total de nodos: {}", contar_nodos(&raiz));
+
+match libro_mayor_isbn(&raiz) {
+
+    Some(libro) => {
+        println!(
+            "Libro con ISBN más alto: {} - {}",
+            libro.isbn,
+            libro.titulo
+        );
+    }
+
+    None => {
+        println!("El árbol está vacío");
+    }
+}
+
+println!("\n--- Eliminando ISBN 20 ---");
+
+raiz = eliminar(raiz.take(), 20);
+
+imprimir(&raiz, 0);
+
+println!("\n--- Estadísticas del Árbol ---");
+
+println!("Altura total: {}", altura_total(&raiz));
+
+println!("Total de nodos: {}", contar_nodos(&raiz));
+
+match libro_mayor_isbn(&raiz) {
+
+    Some(libro) => {
+        println!(
+            "Libro con ISBN más alto: {} - {}",
+            libro.isbn,
+            libro.titulo
+        );
+    }
+
+    None => {
+        println!("El árbol está vacío");
+    }
+}
 }
